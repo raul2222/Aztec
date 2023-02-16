@@ -1,0 +1,3 @@
+/home/raul/Documents/libsynexen/examples/build/CMakeFiles/rebuild_cache.dir
+/home/raul/Documents/libsynexen/examples/build/CMakeFiles/edit_cache.dir
+/home/raul/Documents/libsynexen/examples/build/CMakeFiles/depth.dir
