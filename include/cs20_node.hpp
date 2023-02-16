@@ -1,6 +1,6 @@
 #ifndef CS20_NODE_HPP_
 #define CS20_NODE_HPP_
-
+#include "libsynexens3/libsynexens3.h"
 #include <rclcpp/clock.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/time.hpp>
@@ -15,8 +15,7 @@ class CS20_ROS_PUBLIC cs20_node : public rclcpp::Node
     explicit cs20_node(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
     virtual ~cs20_node();
 
-    void publish_scan(const double scan_time, ResponseNodeArray nodes, size_t node_count);
-
+    //void publish_scan(const double scan_time, ResponseNodeArray nodes, size_t node_count);
     /* service callbacks */
     //void stop_motor(const EmptyRequest req, EmptyResponse res);
     //void start_motor(const EmptyRequest req, EmptyResponse res);
@@ -27,6 +26,11 @@ class CS20_ROS_PUBLIC cs20_node : public rclcpp::Node
     void publish_loop();
 
     void calculate_framerate();
+    void print_device_info(sy3::device *dev);
+    void print_support_format(sy3::device *dev, sy3::sy3_error &e);
+    void show_ir_frame(sy3::ir_frame *frame, const char *name);
+    void show_depth_frame(sy3::depth_frame *frame, const char *name);
+
 
     /* parameters */
     std::string channel_type_;

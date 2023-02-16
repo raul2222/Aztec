@@ -1,4 +1,4 @@
-#include "libsynexens3/libsynexens3.h"
+
 #include "cs20_node.hpp"
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -24,6 +24,11 @@ std::thread fpsThread;
 #include <stdio.h>
 
 namespace cs20_lidar{
+
+cs20_node::~cs20_node()
+{
+	g_frame_count = 0;
+}
 
 
 void calculate_framerate()
@@ -87,7 +92,6 @@ void show_depth_frame(sy3::depth_frame *frame, const char *name)
 {
 	if (frame)
 	{
-
 		g_frame_count++;
 
 		/*cv::Mat gray16(frame->get_height(), frame->get_width(), CV_16UC1, frame->get_data());
