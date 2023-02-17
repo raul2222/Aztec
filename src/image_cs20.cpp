@@ -19,7 +19,9 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include "std_msgs/msg/int32.hpp"
 
-
+using namespace sensor_msgs;
+using namespace image_transport;
+using namespace std;
 
 class PublisherNode : public rclcpp::Node
 {
@@ -113,7 +115,7 @@ void show_depth_frame(sy3::depth_frame *frame, const char *name)
 
           // The distortion parameters, size depending on the distortion model.
         // For "plumb_bob", the 5 parameters are: (k1, k2, k3, k4, k5).
-        camera_info.D = {intrinsics.coeffs[0], intrinsics.coeffs[1], intrinsics.coeffs[2],
+        camera_info.r = {intrinsics.coeffs[0], intrinsics.coeffs[1], intrinsics.coeffs[2],
                         intrinsics.coeffs[3], intrinsics.coeffs[4]};
         // clang-format off
         // Intrinsic camera matrix for the raw (distorted) images.
@@ -123,7 +125,7 @@ void show_depth_frame(sy3::depth_frame *frame, const char *name)
         // Projects 3D points in the camera coordinate frame to 2D pixel
         // coordinates using the focal lengths (fx, fy) and principal point
         // (cx, cy).
-        camera_info.K = {intrinsics.fx,  0.0f,            intrinsics.ppx,
+        camera_info.k = {intrinsics.fx,  0.0f,            intrinsics.ppx,
                         0.0f,           intrinsics.fy,   intrinsics.ppy,
                         0.0f,           0.0,                       1.0f};
         // Projection/camera matrix
@@ -138,14 +140,14 @@ void show_depth_frame(sy3::depth_frame *frame, const char *name)
         //  (cx', cy') - these may differ from the values in K.
         // For monocular cameras, Tx = Ty = 0. Normally, monocular cameras will
         //  also have R = the identity and P[1:3,1:3] = K.
-        camera_info.P = {intrinsics.fx,   0.0f,            intrinsics.ppx,   0.0f,
+        camera_info.p = {intrinsics.fx,   0.0f,            intrinsics.ppx,   0.0f,
                         0.0f,            intrinsics.fy,   intrinsics.ppy,   0.0f,
                         0.0f,            0.0,                       1.0f,   0.0f};
         // Rectification matrix (stereo cameras only)
         // A rotation matrix aligning the camera coordinate system to the ideal
         // stereo image plane so that epipolar lines in both stereo images are
         // parallel.
-        camera_info.R = {1.0f, 0.0f, 0.0f,
+        camera_info.r = {1.0f, 0.0f, 0.0f,
                         0.0f, 1.0f, 0.0f,
                         0.0f, 0.0f, 1.0f};
         // clang-format on
