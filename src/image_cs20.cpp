@@ -7,27 +7,40 @@
 #define DEPTH_HEIGHT 240
 #endif
 #include "libsynexens3/libsynexens3.h"
-
+#include <cv_bridge/cv_bridge.h>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/time.hpp>
 #include <rclcpp/time_source.hpp>
-
+#include <image_transport/image_transport.hpp>
 #include <camera_info_manager/camera_info_manager.hpp>
-#include "image_publisher/image_publisher.hpp"
+#include <sensor_msgs/msg/camera_info.hpp>
 #include <memory>
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
+#include "std_msgs/msg/int32.hpp"
+
 
 
 class PublisherNode : public rclcpp::Node
 {
 public:
-PublisherNode() : Node("cs20")
+
+
+
+explicit PublisherNode(const rclcpp::NodeOptions & options)
+  : Node("cs20", options) 
 {
-    publisher_info_ = create_publisher<std_msgs::msg::Int32>("int_topic", 10);
+    config();
+   //  image_transport::ImageTransport it;
+    
+    //pub = it.advertise("camera/image", 1);
+    
+    //pub = image_transport::create_publisher(PublisherNode, "camera/image");
+
     timer_ = create_wall_timer(
-    20ms, std::bind(&PublisherNode::timer_callback, this));
+    20, std::bind(&PublisherNode::timer_callback, this));
 }
+
 void config(){
 
     sy3::sy3_error e;
@@ -49,6 +62,7 @@ void config(){
 	
 	int switch_flag = 1;
 	g_is_start = true;
+   
 
 }
 
@@ -80,24 +94,22 @@ void show_depth_frame(sy3::depth_frame *frame, const char *name)
         cv::Mat depth_frame_buffer_mat(frame->get_height(),
          frame->get_width(), CV_16UC1, frame->get_data());
 
-        sensor_msgs::msg::ImagePtr& depth_image = cv_bridge::CvImage(std_msgs::msg::Header(), 
-                                   sensor_msgs::image_encodings::TYPE_16UC1, 
-                                   depth_frame_buffer_mat).toImageMsg();
+        sensor_msgs::ImagePtr& depth_image = cv_bridge::CvImage(std_msgs::msg::Header(), sensor_msgs::image_encodings::TYPE_16UC1, depth_frame_buffer_mat).toImageMsg();
         
         std::string frame = "tf2" + "_frame";
-        Time time = rclcpp::Clock().now();
+        rclcpp::Time time = rclcpp::Clock().now();
 
 		depth_image->header.stamp = time;
         depth_image->header.frame_id = frame;
         
-        camera_info_.header.frame_id = frame;
-        camera_info_.header.stamp = time;
+        camera_info.header.frame_id = frame;
+        camera_info.header.stamp = time;
         sy3::sy3_intrinsics intrinsics = frame->get_profile()->get_intrinsics();
 
-        camera_info_.width = intrinsics.width;
-        camera_info_.height = intrinsics.height;
+        camera_info.width = intrinsics.width;
+        camera_info.height = intrinsics.height;
 
-        camera_info_.distortion_model = "plumb_bob";
+        camera_info.distortion_model = "plumb_bob";
 
           // The distortion parameters, size depending on the distortion model.
         // For "plumb_bob", the 5 parameters are: (k1, k2, k3, k4, k5).
@@ -145,7 +157,7 @@ void show_depth_frame(sy3::depth_frame *frame, const char *name)
         camera_info_.p = {1, 0, static_cast<float>(camera_info_.width / 2), 0, 0, 1,
             static_cast<float>(camera_info_.height / 2), 0, 0, 0, 1, 0};*/
 
-        image_pub_.publish(depth_image);
+        pub.publish(depth_image);
         publisher_info_.publish(camera_info);
 /*
 		uint8_t *depth_color = frame->apply_colormap();
@@ -173,9 +185,12 @@ void show_depth_frame(sy3::depth_frame *frame, const char *name)
 
 private:
     //ImagePtr depth_raw_frame(new Image);
-    camera_info_manager::CameraInfoManager camera_info;
-    std::make_shared<image_publisher::ImagePublisher> image_pub_;
-    rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr publisher_info_;
+    
+    image_transport::Publisher pub;
+    sensor_msgs::msg::CameraInfo camera_info;
+    rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr publisher_info_;
+    
+
     rclcpp::TimerBase::SharedPtr timer_;
     std_msgs::msg::Int32 message_;
     volatile bool g_is_start = false;
@@ -183,14 +198,21 @@ private:
     double  g_last_time = 0;
     volatile int g_frame_count = 0;
     //std::thread fpsThread;
-    //sy3::pipeline *pline;
+    sy3::pipeline *pline;
     int nIndex = 0;
+
+
 };
 
 
 int main(int argc, char * argv[]) {
+
+    //sudo apt install ros-foxy-image-transport-plugins
+
     rclcpp::init(argc, argv);
-    auto node_pub = std::make_shared<PublisherNode>();
+    rclcpp::NodeOptions options;
+
+    auto node_pub = std::make_shared<PublisherNode>(options);
     //auto node_sub = std::make_shared<SubscriberNode>();
     //rclcpp::executors::SingleThreadedExecutor executor;
     rclcpp::executors::MultiThreadedExecutor executor(
