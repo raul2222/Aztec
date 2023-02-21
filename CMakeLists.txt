@@ -13,8 +13,8 @@ endif()
 
 FILE(GLOB CS20_SDK_SRC
  
-  "${CS20_SDK_PATH}/lib/ubuntu20.04_x64/*.so"
-  "${CS20_SDK_PATH}/lib/*.so"
+  "${CMAKE_CURRENT_SOURCE_DIR}/lib/ubuntu20.04_x64/*.so"
+
 )
 
 set(req_deps
@@ -30,6 +30,7 @@ set(req_deps
 find_package(ament_cmake_auto REQUIRED)
 find_package(ament_cmake_ros REQUIRED)
 find_package( OpenCV REQUIRED )
+
 find_package(camera_info_manager REQUIRED)
 find_package(image_transport REQUIRED)
 find_package(cv_bridge REQUIRED)
@@ -37,26 +38,28 @@ find_package(cv_bridge REQUIRED)
 ament_auto_find_build_dependencies(REQUIRED ${req_deps})
 
 include_directories(
-  #include
+  include/libsynexens3
   src
   ${OpenCV_INCLUDE_DIRS}
   include
+  lib/ubuntu20.04_x64
 )
+
+
 
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib/ubuntu20.04_x64)
 
-# build composition node
-#add_library(CS20_composition_node SHARED
-#  src/cs20_node.cpp
+
+#add_library(image_cs20 SHARED
 #  ${CS20_SDK_SRC}
 #)
 #ament_target_dependencies(CS20_composition_node ${req_deps})
 
 # build direct ROS 1 port
 
-ament_auto_add_executable(image_cs20 src/image_cs20.cpp ${CS20_SDK_SRC})
-#target_link_libraries(${PROJECT_NAME} PRIVATE ${OpenCV_LIBS})
-ament_target_dependencies(image_cs20 ${req_deps})
+ament_auto_add_executable(image_cs20 src/image_cs.cpp)
+target_link_libraries(image_cs20 ${CS20_SDK_SRC})
+#ament_target_dependencies(image_cs20 ${req_deps}  ${CS20_SDK_SRC})
 
 #ament_auto_add_executable(CS20NodeClient src/client.cpp)
 #ament_target_dependencies(CS20NodeClient ${req_deps})
@@ -67,14 +70,19 @@ ament_target_dependencies(image_cs20 ${req_deps})
 #ament_target_dependencies(CS20_composition ${req_deps})
 
 install(
+  DIRECTORY lib/
+  DESTINATION lib
+)
+
+install(
   TARGETS image_cs20 
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(
-  DIRECTORY launch rviz
-  DESTINATION share/${PROJECT_NAME}
-)
+#install(
+#  DIRECTORY launch rviz
+#  DESTINATION share/${PROJECT_NAME}
+#)
 
 # Install the shared library composition node
 #install(
