@@ -74,6 +74,11 @@ install(
   DESTINATION lib
 )
 
+#install(
+#  DIRECTORY launch/
+#  DESTINATION share/${PROJECT_NAME}/
+#)
+
 install(
   TARGETS image_cs20 
   DESTINATION lib/${PROJECT_NAME}

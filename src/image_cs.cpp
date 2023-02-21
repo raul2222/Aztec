@@ -1,11 +1,11 @@
 
-#if 0
-#define DEPTH_WIDTH 640
-#define DEPTH_HEIGHT 480
-#else
+//#if 0
+//#define DEPTH_WIDTH 640
+//#define DEPTH_HEIGHT 480
+//#else
 #define DEPTH_WIDTH 320
 #define DEPTH_HEIGHT 240
-#endif
+//#endif
 #include "libsynexens3/libsynexens3.h"
 #include <cv_bridge/cv_bridge.h>
 #include "opencv2/imgcodecs/legacy/constants_c.h"
@@ -20,13 +20,15 @@
 #include <memory>
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
-#include "std_msgs/msg/int32.hpp"
+#include <stdio.h>
+#include <unistd.h>
+#include <thread>
 
 ///////////////////////////////////////////////////////////////
 std::shared_ptr<rclcpp::Node> node = nullptr;
-//auto publisher_info_ = NULL;
 std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::CameraInfo>> publisher_info_;
 image_transport::Publisher pub;
+image_transport::Publisher pub_color;
 sensor_msgs::msg::CameraInfo camera_info;
 
 ////////////////////////////////////////////////////////////
@@ -34,44 +36,67 @@ volatile bool g_is_start = false;
 volatile int g_fps = 0;
 double  g_last_time = 0;
 volatile int g_frame_count = 0;
+int nIndex = 0;
+volatile bool config1 = false;
+volatile bool config2 = false;
+
 std::thread fpsThread;
 sy3::pipeline *pline;
 sy3::sy3_intrinsics intrinsics;
-int nIndex = 0;
+sy3::device *dev;
 
+uint16_t filter_value = 0;
 
+void calculate_framerate()
+{
+	while (g_is_start)
+	{
+		double cur_time = cv::getTickCount() / cv::getTickFrequency() * 1000;
+
+		if (cur_time - g_last_time > 1000)
+		{
+			//printf("===============> cur_time:%lf \n", cur_time);
+			g_fps = g_frame_count;
+			g_frame_count = 0;
+			g_last_time = cur_time;
+		}
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	}
+}
 
 void config(){
-
     sy3::sy3_error e;
 	printf("version:%s \n", sy3::sy3_get_version(e));
 	sy3::context *ctx = sy3::sy3_create_context(e);
-	sy3::device *dev = ctx->query_device(e);
+	dev = ctx->query_device(e);
 	if (e != sy3::sy3_error::SUCCESS)
 	{
 		printf("error:%s \n", sy3::sy3_error_to_string(e));
 		
 	}
-	pline = sy3::sy3_create_pipeline(ctx, e);
+    
+    pline = sy3::sy3_create_pipeline(ctx, e);
 	sy3::config *cfg = sy3_create_config(e);
 
 	cfg->enable_stream(sy3::sy3_stream::SY3_STREAM_DEPTH, DEPTH_WIDTH, DEPTH_HEIGHT, e);
 
 	pline->start(cfg, e);
 	bool quit = false;
-	
 	int switch_flag = 1;
 	g_is_start = true;
-
 
     image_transport::ImageTransport it(node);
     
     pub = it.advertise("camera/image", 100);
+
+    pub_color = it.advertise("camera2/image2", 1);
     
-    //pub = image_transport::create_publisher(PublisherNode, "camera/image");
-   
     publisher_info_ = node->create_publisher<sensor_msgs::msg::CameraInfo>("camera/info", 100);
+
+    fpsThread = std::thread(calculate_framerate);
+
 }
+
 
 
 void show_depth_frame(sy3::depth_frame *frame)
@@ -87,13 +112,13 @@ void show_depth_frame(sy3::depth_frame *frame)
         //sensor_msgs::ImagePtr& depth_image = cv_bridge::CvImage(std_msgs::msg::Header(), sensor_msgs::image_encodings::TYPE_16UC1, depth_frame_buffer_mat).toImageMsg();
         depth_image = cv_bridge::CvImage(std_msgs::msg::Header(), sensor_msgs::image_encodings::TYPE_16UC1, depth_frame_buffer_mat).toImageMsg();
 
-        std::string frame = "tf2_frame";
+        std::string frame_tf = "tf2_frame";
         rclcpp::Time time = rclcpp::Clock().now();
 
 		depth_image->header.stamp = time;
-        depth_image->header.frame_id = frame;
+        depth_image->header.frame_id = frame_tf;
         
-        camera_info.header.frame_id = frame;
+        camera_info.header.frame_id = frame_tf;
         camera_info.header.stamp = time;
         //sy3::sy3_intrinsics intrinsics = frame->get_profile()->get_intrinsics();
 
@@ -150,7 +175,7 @@ void show_depth_frame(sy3::depth_frame *frame)
 
         pub.publish(depth_image);
         publisher_info_->publish(camera_info);
-/*
+
 		uint8_t *depth_color = frame->apply_colormap();
 		cv::Mat yuvImg(frame->get_height(), frame->get_width(), CV_8UC3, depth_color);
 
@@ -166,13 +191,22 @@ void show_depth_frame(sy3::depth_frame *frame)
 		origin.y = 0 + text_size.height;
 		cv::putText(yuvImg, msg, origin, font_face, font_scale, cv::Scalar(0, 255, 255), thickness, 2, 0);
 
-		cv::namedWindow("MAP_COLOR", cv::WINDOW_NORMAL);
-		cv::imshow("MAP_COLOR", yuvImg);
+        sensor_msgs::msg::Image::SharedPtr depth_img_color;
+        //sensor_msgs::ImagePtr& depth_image = cv_bridge::CvImage(std_msgs::msg::Header(), sensor_msgs::image_encodings::TYPE_16UC1, depth_frame_buffer_mat).toImageMsg();
+        depth_img_color = cv_bridge::CvImage(std_msgs::msg::Header(), sensor_msgs::image_encodings::TYPE_8UC3, yuvImg).toImageMsg();
+        depth_img_color->header.stamp = time;
+        depth_img_color->header.frame_id = frame_tf;
 
-		sy3::sy3_intrinsics intrinsics = frame->get_profile()->get_intrinsics();
-		// printf("intrinsics: %d x %d \n", intrinsics.width, intrinsics.height);*/
+        pub_color.publish(depth_img_color);
+		
+        //cv::namedWindow("MAP_COLOR", cv::WINDOW_NORMAL);
+		//cv::imshow("MAP_COLOR", yuvImg);
+
+		//sy3::sy3_intrinsics intrinsics = frame->get_profile()->get_intrinsics();
+		// printf("intrinsics: %d x %d \n", intrinsics.width, intrinsics.height);
 	}
 }
+
 
 
 
@@ -186,9 +220,31 @@ void timerCallback()
 		//	printf("depth_frame:empty \n");
 	}
 	else{
+
+        if(g_frame_count % 450 == 0 && config1 == false) {
+            dev->get_sensor(e)->set_option(sy3::sy3_option::SY3_OPTION_DEPTH_IMAGE_FILTER, filter_value, e);
+            filter_value = !filter_value;
+            uint16_t value;
+            dev->get_sensor(e)->get_option(sy3::sy3_option::SY3_OPTION_DEPTH_IMAGE_FILTER, value, e);
+            //printf("%d SY3_OPTION_DEPTH_IMAGE_FILTER:%d \n", g_frame_count, value);
+            config1 = true;
+        }
+
+        if(g_frame_count % 550 == 0 && config2 == false) {
+            dev->get_sensor(e)->set_option(sy3::sy3_option::SY3_OPTION_DISTANCE_RANGE, 2500,20, e);
+
+            uint16_t min = 0;uint16_t max = 0;
+			dev->get_sensor(e)->get_option(sy3::sy3_option::SY3_OPTION_DISTANCE_RANGE, min, max, e);
+			printf("min %d max %d \n", min, max);
+            config2 = true;
+        }
+
+
         intrinsics = depth_frame->get_profile()->get_intrinsics();
 		show_depth_frame(depth_frame);		
+
 	}
+    
 
 	delete frameset;
 	nIndex++;
@@ -201,11 +257,9 @@ int main(int argc, char * argv[]) {
 
     //sudo apt install ros-foxy-image-transport-plugins
 
-    
     rclcpp::init(argc, argv);
     rclcpp::NodeOptions options;
 
-    //node = std::make_shared<PublisherNode>(options);
     node = std::make_shared<rclcpp::Node>("cs_20");
 
     auto timer = node->create_wall_timer(
@@ -214,7 +268,6 @@ int main(int argc, char * argv[]) {
     rclcpp::executors::MultiThreadedExecutor executor(
     rclcpp::executor::ExecutorArgs(), 4);
     executor.add_node(node);
-
 
     config();
     executor.spin();
